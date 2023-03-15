@@ -1,8 +1,15 @@
+import json
+import inspect
+from typing import Optional
+
 import streamlit as st
 
 from idd_ai.chatgpt import get_feedback, load_api_key
-from idd_ai.contracts import dynamically_create_pydantic_model, make_contract
+from idd_ai.contracts import (
+    ensure_valid_contract,
+)
 from idd_ai.plugins.test_plugin import contract as plugin_contract
+from idd_ai.plugins.test_plugin import AddStats
 
 st.title("IDD AI")
 
@@ -21,93 +28,122 @@ if not api_key_loaded:
         st.write("Error loading API key")
         st.write(e)
 
-plugin = st.radio("Select a plugin", options=["Test plugin", "New plugin"])
-table_name = ""
-table_description = ""
+valid_contract = False
+plugin = st.radio("Select a plugin", options=["New plugin", "Use test plugin"])
+# table_name = ""
+# table_description = ""
 
 # test_plugin = st.button("Use Test plugin")
 
+st.header(":green[Example contract]")
+st.markdown(
+    """
+<style>
+.streamlit-expanderHeader {
+    font-size: x-large;
+    font-weight: bold;
+}
+</style>
+""",
+    unsafe_allow_html=True,
+)
+with st.expander("**Source code**", expanded=True):
+    st.write("### Test plugin contract source code:")
+    st.code(inspect.getsource(AddStats), language="python")
 
-def ask_for_columns():
-    # Create a text input widget for entering in a column name
-    column_name = st.text_input("Enter in a column name", value="")
-    # Create a radio button widget for selecting the column type
-    column_type = st.radio(
-        "Select a column type", options=["integer", "float", "string"]
-    )
-
-    # Create a text input widget for entering in a column description
-    column_description = st.text_input("Enter in a column description", value="")
-
-    # Create a button to submit the column
-    submit_column = st.button("Submit column")
-
-    # If the button is clicked, then return the column name, type, and description
-    if submit_column:
-        columns.append((column_name, column_type, column_description))
+with st.expander("**JSON contract**"):
+    st.write("### Test plugin contract JSON:")
+    st.code(json.dumps(plugin_contract, indent=4), language="json")
 
 
+class _Contract_PlaceHolder:
+    """Use if rountrip to pydantic model is not needed"""
+
+    def __init__(self, json_contract: str) -> None:
+        self.json_contract = json_contract
+
+    def schema(self) -> dict:
+        return json.loads(self.json_contract)
+
+
+contract = plugin_contract
 if plugin == "New plugin":
-    # Create a text input widget for entering in a table name
-    table_name = st.text_input("Enter in a table name", value="")
-    # Create a text input widget for entering in a table description
-    table_description = st.text_input("Enter in a table description", value="")
 
-    # Create a list to store the columns
-    columns = []
+    st.write("## Create new plugin contract from JSON")
+    st.write(
+        "See example test plugin contract above for reference. JSON should be in the following format:"
+    )
+    st.write(
+        "```json\n{\ntable: ...,\n table_description: ...,\n columns: {\ncolumn_name_1:{\ntype: ...,\n description: ...,}}}```"
+    )
+    contract_init_value = "{table: ..., table_description: ..., columns: {column_name_1:{type: ..., description: ...,}}}"
 
-    st.write("### Columns")
-    st.code(columns)
+    # Create a wide text input widget for entering in json contract
+    with st.expander("**Enter New JSON contract**"):
 
-    # Create a button to add ask for a column
-    add_column = st.button("Add column", on_click=ask_for_columns)
+        # use_test_contract = st.button("Use test contract")
+        # if use_test_contract:
+        #     contract_init_value = json.dumps(plugin_contract, indent=4).replace(
+        #         "'", "`"
+        #     )
 
-    if table_name != "" and table_description != "":
+        typed_contract = st.text_area(
+            label="Edit JSON below. If using test contract, make sure to type some text to trigger the input form.",
+            value=contract_init_value,
+            height=500,
+        )
         # Create a button to submit the JSON string
-        submit_new_plugin = st.button("Submit table", key="submit_new_plugin")
+        submit_new_plugin = st.button("Submit plugin", key="submit_new_plugin")
 
-        # If the button is clicked, then parse the JSON string and print it out
-        if submit_new_plugin:
-            ModelClass = dynamically_create_pydantic_model(
-                table_name=table_name, fields=columns
-            )
-            contract = make_contract(ModelClass, description=table_description)
+    # If the button is clicked, then parse the JSON string and print it out
+    if submit_new_plugin:
+        contract_json = json.loads(typed_contract)
 
-            st.write("# Contract")
-            st.code(contract, language="json")
+        if ensure_valid_contract(contract_json):
+            # @TODO: This is roundtrip to pydantic model is probably not needed.
+            # Create a pydantic model from contract (indirectly validates, I think)
+            # contract_model = pydantic_model_from_contract(contract_json)
 
-            # Wait for chatgpt to be ready with streamlit waiting icon
-            st.write("# Waiting for chatgpt to be ready...")
-            with st.spinner("Waiting..."):
-                # Get feedback from chatgpt
-                contract_feedback = get_feedback(contract)
+            # Parse the JSON string
+            #  contract = make_contract(contract_model)
+            contract = contract_json
+            valid_contract = True
+        else:
+            st.write("Invalid contract! Try again.")
+            valid_contract = False
 
-            st.write("# Feedback")
-            st.code(contract_feedback, language="json")
-
-            st.code(contract_feedback.choices[0].message.content, language="python")
-
-
-if plugin == "Test plugin":
+if plugin == "Use test plugin":
     contract = plugin_contract
-    st.write("# Test Contract")
-    st.code(contract, language="json")
+    valid_contract = True
+
+feedback: Optional[str] = None
+if valid_contract:
+    st.write("# Proposed Contract:")
+    st.code(json.dumps(contract, indent=4), language="json")
 
     # Create a button to submit the JSON string
     submit_test_plugin = st.button(
-        "Get feedback on test plugin", key="submit_test_plugin"
+        "Get feedback on proposed plugin contract", key="submit_test_plugin"
     )
 
     # If the button is clicked, then parse the JSON string and print it out
+    got_feedback = False
     if submit_test_plugin:
 
         # Wait for chatgpt to be ready with streamlit waiting icon
-        st.write("# Waiting for chatgpt to be ready...")
+        st.write("### Waiting for ChatGPT's valuable insight...")
         with st.spinner("Waiting..."):
             # Get feedback from chatgpt
             contract_feedback = get_feedback(contract)
+            got_feedback = True
 
-        st.write("# Feedback")
-        st.code(contract_feedback, language="json")
+        with st.expander("ChatGPT raw response"):
+            st.code(contract_feedback, language="json")
 
-        st.code(contract_feedback.choices[0].message.content, language="python")
+        if got_feedback:
+            feedback = contract_feedback.choices[0].message.content
+
+    if got_feedback and feedback:
+        st.header("Feedback")
+        st.code(feedback, language="python")
+        st.markdown(feedback)

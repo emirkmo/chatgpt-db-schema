@@ -1,4 +1,4 @@
-from typing import TypedDict, Any, Protocol, cast
+from typing import TypedDict, Any, Protocol, cast, TypeGuard
 from pydantic.dataclasses import dataclass
 from pydantic import Field, create_model
 from pydantic.main import ModelMetaclass
@@ -115,3 +115,30 @@ def pydantic_model_from_contract(contract: Contract) -> HasPydanticSchema:
         contract["table"],
         fields,  # type: ignore
     )
+
+
+def ensure_valid_contract(contract: Contract) -> TypeGuard[Contract]:
+    """Ensure that the contract is defined correctly, in a basic sense.
+    Table name, description, and at least 1 column with name, type, and description.
+    Does not check for valid types, or that the table name is unique, or that
+    fields are unique, or the field type matches the type in the description, etc."""
+    table = contract.get("table", None)
+    table_description = contract.get("table_description", None)
+    columns = contract.get("columns", None)
+
+    if (
+        None in (table, table_description, columns)
+        or not isinstance(columns, dict)
+        or table == ""
+        or table_description == ""
+    ):
+        return False
+
+    for colname, properties in columns.items():
+        if not isinstance(colname, str) or not isinstance(properties, dict):
+            return False
+
+        if "type" not in properties or "description" not in properties:
+            return False
+
+    return True
