@@ -27,6 +27,8 @@ ipykernel = "^6.21.3"
 
 [tool.poetry.group.dashboard.dependencies]
 streamlit = "^1.20.0"
+gradio = "^3.21.0"
+loguru = "^0.6.0"
 
 [build-system]
 requires = ["poetry-core"]

@@ -72,3 +72,12 @@ def get_plugin_feedback(plugin: Plugin | FixedPlugin) -> tuple[OpenAIObject, ...
 
     fixed_contract_feedback = print_contract_feedback(plugin.fixed_contract)
     return (contract_feedback, fixed_contract_feedback)
+
+
+def _get_cost(tokens: int, cost: float = 0.002 / 1000) -> float:
+    return tokens * 0.002 / 1000
+
+
+def get_query_cost(query: OpenAIObject) -> str:
+    cost = _get_cost(sum(query.usage.values()))
+    return f"Cost: ${cost} or SEK {cost*10} kr."
