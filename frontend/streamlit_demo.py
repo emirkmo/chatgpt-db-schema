@@ -1,6 +1,7 @@
 import json
 import inspect
 from typing import Optional
+import logging
 
 import streamlit as st
 
@@ -79,6 +80,7 @@ if plugin == "New plugin":
     contract_init_value = "{table: ..., table_description: ..., columns: {column_name_1:{type: ..., description: ...,}}}"
 
     # Create a wide text input widget for entering in json contract
+
     with st.expander("**Enter New JSON contract**"):
 
         # use_test_contract = st.button("Use test contract")
@@ -86,20 +88,25 @@ if plugin == "New plugin":
         #     contract_init_value = json.dumps(plugin_contract, indent=4).replace(
         #         "'", "`"
         #     )
-
-        typed_contract = st.text_area(
-            label="Edit JSON below. If using test contract, make sure to type some text to trigger the input form.",
-            value=contract_init_value,
-            height=500,
-        )
-        # Create a button to submit the JSON string
-        submit_new_plugin = st.button("Submit plugin", key="submit_new_plugin")
+        if not valid_contract:
+            typed_contract = st.text_area(
+                label="Edit JSON below. If using test contract, make sure to type some text to trigger the input form.",
+                value=contract_init_value,
+                height=500,
+            )
+            # Create a button to submit the JSON string
+            validate_json = st.button("Validate json", key="submit_new_plugin")
 
     # If the button is clicked, then parse the JSON string and print it out
-    if submit_new_plugin:
+    if validate_json and not valid_contract:
         contract_json = json.loads(typed_contract)
 
+        # logging.debug(contract_json)
+        # logging.debug(typed_contract)
+
         if ensure_valid_contract(contract_json):
+            logging.debug("Valid contract!")
+            st.write("Valid contract!")
             # @TODO: This is roundtrip to pydantic model is probably not needed.
             # Create a pydantic model from contract (indirectly validates, I think)
             # contract_model = pydantic_model_from_contract(contract_json)
@@ -108,9 +115,6 @@ if plugin == "New plugin":
             #  contract = make_contract(contract_model)
             contract = contract_json
             valid_contract = True
-        else:
-            st.write("Invalid contract! Try again.")
-            valid_contract = False
 
 if plugin == "Use test plugin":
     contract = plugin_contract
