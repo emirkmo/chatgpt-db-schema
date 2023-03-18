@@ -3,7 +3,7 @@ name = "idd-ai"
 version = "0.1.0"
 description = "Chatgpt API for commenting on database table column names, types, and descriptions."
 authors = ["Emir Karamehmetoglu <ek2660@gmail.com>"]
-license = "AGPL3"
+license = "CC-BY-NC-SA"
 readme = "README.md"
 packages = [{include = "idd_ai"}]
 
